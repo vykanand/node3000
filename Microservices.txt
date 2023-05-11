@@ -1,0 +1,7 @@
+https://www.linuxtechi.com/how-to-install-minikube-on-ubuntu/
+
+sudo minikube delete
+
+minikube start --extra-config=kubeadm.ignore-preflight-errors=NumCPU --force --cpus 1 --memory=700mb
+OR
+sudo minikube start --driver=docker --extra-config=kubeadm.ignore-preflight-errors=NumCPU --memory=700mb

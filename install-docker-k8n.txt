@@ -1,0 +1,47 @@
+# Update package manager
+sudo apt-get update
+
+# Install Docker
+sudo apt-get install -y docker.io
+
+# Add current user to Docker group
+sudo usermod -aG docker $USER
+
+# Install Kubernetes
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+---------------------------
+
+#!/bin/bash
+
+# Update package index and upgrade packages
+sudo apt-get update
+sudo apt-get upgrade -y
+
+# Install Docker
+sudo apt-get install -y docker.io
+
+# Add Kubernetes apt repository key
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+# Add Kubernetes apt repository
+sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+
+# Update package index again
+sudo apt-get update
+
+# Install Kubernetes components
+sudo apt-get install -y kubelet kubeadm kubectl
+
+# Initialize Kubernetes control plane
+sudo kubeadm init
+
+# Configure kubectl for non-root user
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# Optional: join worker nodes to the cluster
+# Run the command provided by kubeadm during initialization on each worker node
