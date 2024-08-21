@@ -1,0 +1,138 @@
+---
+- name Setup Kubernetes Cluster
+  hosts all
+  become yes
+  tasks
+    - name Update all packages
+      apt
+        update_cache yes
+        upgrade yes
+
+    - name Install required packages
+      apt
+        name
+          - curl
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - software-properties-common
+        state present
+
+    - name Install Docker
+      apt
+        name docker-ce
+        state present
+
+    - name Ensure Docker is started and enabled
+      systemd
+        name docker
+        state started
+        enabled yes
+
+    - name Install Kubernetes components
+      apt
+        name
+          - kubelet
+          - kubeadm
+          - kubectl
+        state present
+
+    - name Add Kubernetes repository key
+      apt_key
+        url httpspackages.cloud.google.comaptdocapt-key.gpg
+        state present
+
+    - name Add Kubernetes APT repository
+      apt_repository
+        repo deb httpsapt.kubernetes.io kubernetes-xenial main
+
+    - name Install Ansible
+      pip
+        name ansible
+        state present
+
+    - name Install Docker Compose
+      get_url
+        url httpsgithub.comdockercomposereleasesdownload1.29.2docker-compose-$(uname -s)-$(uname -m)
+        dest usrlocalbindocker-compose
+        mode 'u+x'
+
+    - name Install Jenkins
+      apt
+        name openjdk-11-jdk
+        state present
+
+    - name Add Jenkins repository key
+      apt_key
+        url httpspkg.jenkins.iodebianjenkins.io.key
+        state present
+
+    - name Add Jenkins APT repository
+      apt_repository
+        repo deb httppkg.jenkins.iodebian-stable binary
+
+    - name Install Jenkins
+      apt
+        name jenkins
+        state present
+
+    - name Ensure Jenkins is started and enabled
+      systemd
+        name jenkins
+        state started
+        enabled yes
+
+    - name Configure firewall for Kubernetes
+      ufw
+        rule allow
+        name {{ item }}
+        state enabled
+      with_items
+        - '22tcp'
+        - '6443tcp'
+        - '2379tcp'
+        - '2380tcp'
+        - '10250tcp'
+        - '10251tcp'
+        - '10252tcp'
+        - '10255tcp'
+        - '3000032767tcp'
+
+    - name Initialize Kubernetes master (only on master node)
+      shell 
+        kubeadm init --pod-network-cidr=10.244.0.016
+      when 'master' in group_names
+      register kubeadm_init_output
+
+    - name Set up kubeconfig for root
+      shell 
+        mkdir -p root.kube
+        cp etckubernetesadmin.conf root.kubeconfig
+        chown $(id -u)$(id -g) root.kubeconfig
+      when 'master' in group_names
+
+    - name Install Flannel network plugin
+      shell 
+        kubectl apply -f httpsraw.githubusercontent.comcoreosflannelmasterDocumentationkube-flannel.yml
+      when 'master' in group_names
+
+    - name Join Kubernetes worker nodes (only on worker nodes)
+      shell 
+        kubeadm join --token {{ kubeadm_init_output.stdout_lines[0] }} 
+        --discovery-token-ca-cert-hash sha256{{ kubeadm_init_output.stdout_lines[1] }} 
+        {{ groups['master'][0] }}6443
+      when 'worker' in group_names
+      register join_output
+
+    - name Copy Kubernetes configuration for users
+      shell 
+        mkdir -p home{{ ansible_user }}.kube
+        cp etckubernetesadmin.conf home{{ ansible_user }}.kubeconfig
+        chown {{ ansible_user }}{{ ansible_user }} home{{ ansible_user }}.kubeconfig
+      when 'master' in group_names
+
+    - name Deploy a sample application (optional)
+      shell 
+        kubectl create deployment nginx --image=nginx
+        kubectl expose deployment nginx --port=80 --type=LoadBalancer
+      when 'master' in group_names
